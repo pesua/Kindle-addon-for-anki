@@ -1,24 +1,18 @@
-__author__ = 'acher'
-# import the main window object (mw) from ankiqt
+__author__ = 'pesua'
+from aqt.browser import Browser
 from aqt import mw
-# import the "show info" tool from utils.py
 from aqt.utils import showInfo
-# import all of the Qt GUI library
 from aqt.qt import *
 import sqlite3 as lite
 import sys
 
 from anki.importing.noteimp import NoteImporter, ForeignNote
 
-# We're going to add a menu item below. First we want to create a function to
-# be called when the menu item is activated.
-desc = "Test"
+desk = "Test"
 cardType = "Basic (and reversed card)-1e33a"
 
-def testFunction():
-    # showInfo("Card count: %d" % cardCount)
-
-    did = mw.col.decks.id(desc)
+def importCards():
+    did = mw.col.decks.id(desk)
     mw.col.decks.select(did)
     # set note type for deck
     model = mw.col.models.byName(cardType)
@@ -30,16 +24,19 @@ def testFunction():
     mw.col.models.save(model)
 
     # import into the collection
-    importer = KindleImporter(mw.col, "ololofile")
+    importer = KindleImporter(mw.col, "")
     importer.initMapping()
     importer.run()
-    showInfo("Imported \n" + '\n'.join(importer.log))
 
-# create a new menu item, "test"
+    showInfo("Import log: \n" + '\n'.join(importer.log))
+
+    # display imported cards
+    browser = Browser(mw)
+    browser.form.searchEdit.setEditText("added:1 tag:kindle mid:" + `model['id']`)
+    browser.form.searchEdit.keyPressEvent(QKeyEvent(QEvent.KeyPress, Qt.Key_Enter, Qt.KeyboardModifierMask))
+
 action = QAction("Import new words from Kindle", mw)
-# set it to call testFunction when it's clicked
-mw.connect(action, SIGNAL("triggered()"), testFunction)
-# and add it to the tools menu
+mw.connect(action, SIGNAL("triggered()"), importCards)
 mw.form.menuTools.addAction(action)
 
 class KindleImporter(NoteImporter):
@@ -59,7 +56,7 @@ class KindleImporter(NoteImporter):
             return rows
         except lite.Error, e:
             sys.stderr.write("Error %s:\n" % e.args[0])
-            raise IOError("can't read DB")
+            raise IOError("can't read kindle DB")
         finally:
             if con:
                 con.close()
@@ -76,10 +73,10 @@ class KindleImporter(NoteImporter):
 
     def noteFromFields(self, fields):
         note = ForeignNote()
-        note.fields.extend([x for x in fields])
+        note.fields.extend([fields[0],'', fields[1]])
         note.tags.extend(['kindle'])
         return note
 
     def fields(self):
         "The number of fields."
-        return 2
+        return 3
