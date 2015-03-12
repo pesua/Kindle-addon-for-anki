@@ -8,7 +8,7 @@ import sys
 
 from anki.importing.noteimp import NoteImporter, ForeignNote
 
-desk = "Test"
+desk = "English"
 cardType = "Basic (and reversed card)-1e33a"
 
 def findDB():
@@ -58,6 +58,10 @@ class KindleImporter(NoteImporter):
         self.dbFile = args[1]
         self.log.append("Importing words from file " + self.dbFile + " to desk " + desk)
 
+    def run(self):
+        super(KindleImporter, self).run()
+        self.markMastered()
+
     def readWords(self):
         con = None
         try:
@@ -66,6 +70,21 @@ class KindleImporter(NoteImporter):
             cur.execute('SELECT w.stem, l.usage FROM WORDS as w join LOOKUPS as l on w.id = l.word_key where w.category = 0 ORDER BY w.timestamp ASC;')
             rows = cur.fetchall()
             return rows
+        except lite.Error, e:
+            sys.stderr.write("Error %s:\n" % e.args[0])
+            raise IOError("can't read kindle DB")
+        finally:
+            if con:
+                con.close()
+
+    def markMastered(self):
+        con = None
+        try:
+            con = lite.connect(self.dbFile)
+            cur = con.cursor()
+            cur.execute('update WORDS set category = 100 where category = 0')
+            con.commit()
+            self.log.append("Marked imported words as mastered(change may be visible only after reboot)")
         except lite.Error, e:
             sys.stderr.write("Error %s:\n" % e.args[0])
             raise IOError("can't read kindle DB")
