@@ -3,19 +3,25 @@ from aqt.browser import Browser
 from aqt import mw
 from aqt.utils import showInfo
 from aqt.qt import *
+from string import Template
 import sqlite3 as lite
 import sys
+import requests
 
 from anki.importing.noteimp import NoteImporter, ForeignNote
 
 desk = "English"
 cardType = "Basic (and reversed card)-1e33a"
+srcLanguage = "eng"
+dstLanguage = "rus"
+
 
 def findDB():
     searchDir = "/media"
     for root, dirs, files in os.walk(searchDir):
         if ("vocab.db" in files) and root.endswith("system/vocabulary"):
             return os.path.join(root, "vocab.db")
+
 
 def importCards():
     did = mw.col.decks.id(desk)
@@ -50,6 +56,7 @@ action = QAction("Import new words from Kindle", mw)
 mw.connect(action, SIGNAL("triggered()"), importCards)
 mw.form.menuTools.addAction(action)
 
+
 class KindleImporter(NoteImporter):
     importMode = 1
 
@@ -67,7 +74,8 @@ class KindleImporter(NoteImporter):
         try:
             con = lite.connect(self.dbFile)
             cur = con.cursor()
-            cur.execute('SELECT w.stem, l.usage FROM WORDS as w join LOOKUPS as l on w.id = l.word_key where w.category = 0 ORDER BY w.timestamp ASC;')
+            cur.execute(
+                'SELECT w.stem, l.usage FROM WORDS as w join LOOKUPS as l on w.id = l.word_key where w.category = 0 ORDER BY w.timestamp ASC;')
             rows = cur.fetchall()
             return rows
         except lite.Error, e:
@@ -104,10 +112,23 @@ class KindleImporter(NoteImporter):
 
     def noteFromFields(self, fields):
         note = ForeignNote()
-        note.fields.extend([fields[0],'', fields[1]])
+        translation = ', '.join(translate(fields[0]))
+        note.fields.extend([fields[0], translation, fields[1]])
         note.tags.extend(['kindle'])
         return note
 
     def fields(self):
         "The number of fields."
         return 3
+
+
+def translate(word):
+    url = Template('https://glosbe.com/gapi/translate?from=$src&dest=$dst&format=json&phrase=$word').substitute(src=srcLanguage, dst=dstLanguage, word=word)
+    response = requests.get(url)
+    translations = []
+    json = response.json()["tuc"]
+    if json:
+        for phrase in json:
+            if phrase.get("phrase", False):
+                translations.append(phrase["phrase"]["text"])
+    return translations
